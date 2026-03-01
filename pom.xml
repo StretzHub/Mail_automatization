@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.mailautomation</groupId>
+    <artifactId>gmail-draft-monitor</artifactId>
+    <version>1.0</version>
+    <packaging>jar</packaging>
+
+    <repositories>
+        <repository>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2/</url>
+        </repository>
+        <repository>
+            <id>jcenter</id>
+            <url>https://jcenter.bintray.com/</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!-- Android SDK stubs (compile only) -->
+        <dependency>
+            <groupId>com.google.android</groupId>
+            <artifactId>android</artifactId>
+            <version>4.1.1.4</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- AndroidX Core -->
+        <dependency>
+            <groupId>androidx.core</groupId>
+            <artifactId>core</artifactId>
+            <version>1.12.0</version>
+            <type>aar</type>
+        </dependency>
+        <dependency>
+            <groupId>androidx.core</groupId>
+            <artifactId>core-ktx</artifactId>
+            <version>1.12.0</version>
+            <type>aar</type>
+        </dependency>
+        <dependency>
+            <groupId>androidx.appcompat</groupId>
+            <artifactId>appcompat</artifactId>
+            <version>1.6.1</version>
+            <type>aar</type>
+        </dependency>
+        <dependency>
+            <groupId>androidx.cardview</groupId>
+            <artifactId>cardview</artifactId>
+            <version>1.0.0</version>
+            <type>aar</type>
+        </dependency>
+        <dependency>
+            <groupId>com.google.android.material</groupId>
+            <artifactId>material</artifactId>
+            <version>1.10.0</version>
+            <type>aar</type>
+        </dependency>
+        <dependency>
+            <groupId>androidx.constraintlayout</groupId>
+            <artifactId>constraintlayout</artifactId>
+            <version>2.1.4</version>
+            <type>aar</type>
+        </dependency>
+        <dependency>
+            <groupId>androidx.multidex</groupId>
+            <artifactId>multidex</artifactId>
+            <version>2.0.1</version>
+            <type>aar</type>
+        </dependency>
+
+        <!-- Google Play Services Auth -->
+        <dependency>
+            <groupId>com.google.android.gms</groupId>
+            <artifactId>play-services-auth</artifactId>
+            <version>20.7.0</version>
+            <type>aar</type>
+        </dependency>
+
+        <!-- Gmail API -->
+        <dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client-android</artifactId>
+            <version>1.33.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-gmail</artifactId>
+            <version>v1-rev20220404-1.32.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.http-client</groupId>
+            <artifactId>google-http-client-gson</artifactId>
+            <version>1.43.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.http-client</groupId>
+            <artifactId>google-http-client</artifactId>
+            <version>1.43.3</version>
+        </dependency>
+
+        <!-- Kotlin -->
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
+            <version>1.9.10</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlinx</groupId>
+            <artifactId>kotlinx-coroutines-android</artifactId>
+            <version>1.7.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlinx</groupId>
+            <artifactId>kotlinx-coroutines-core</artifactId>
+            <version>1.7.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlinx</groupId>
+            <artifactId>kotlinx-coroutines-play-services</artifactId>
+            <version>1.7.3</version>
+        </dependency>
+
+        <!-- Support libraries -->
+        <dependency>
+            <groupId>androidx.annotation</groupId>
+            <artifactId>annotation</artifactId>
+            <version>1.7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>androidx.lifecycle</groupId>
+            <artifactId>lifecycle-common</artifactId>
+            <version>2.6.2</version>
+        </dependency>
+    </dependencies>
+</project>

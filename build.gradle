@@ -1,0 +1,23 @@
+buildscript {
+    ext.kotlin_version = '1.9.10'
+    ext.agp_version = '8.2.0'
+    repositories {
+        maven { url 'https://repo1.maven.org/maven2/' }
+        maven { url 'https://jcenter.bintray.com/' }
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:$agp_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        maven { url 'https://repo1.maven.org/maven2/' }
+        maven { url 'https://jcenter.bintray.com/' }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

@@ -1,0 +1,19 @@
+# Build artifacts
+build/
+deps/
+*.ap_
+*.idsig
+
+# Gradle
+.gradle/
+*.class
+
+# Local config
+local.properties
+
+# IDE files
+.idea/
+*.iml
+
+# Temp files
+/tmp/
