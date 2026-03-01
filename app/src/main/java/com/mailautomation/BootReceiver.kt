@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 
 class BootReceiver : BroadcastReceiver() {
 
@@ -17,15 +16,16 @@ class BootReceiver : BroadcastReceiver() {
         if (action == Intent.ACTION_BOOT_COMPLETED || action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             Log.d(TAG, "Gerät gestartet / App aktualisiert – prüfe ob Monitoring gestartet werden soll")
 
-            val account = GoogleSignIn.getLastSignedInAccount(context)
-            if (account != null) {
-                Log.d(TAG, "Starte GmailMonitorService für: ${account.email}")
-                val serviceIntent = Intent(context, GmailMonitorService::class.java).apply {
-                    putExtra("account_name", account.email)
-                }
+            val prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+            val email = prefs.getString(MainActivity.KEY_EMAIL, "") ?: ""
+            val password = prefs.getString(MainActivity.KEY_PASSWORD, "") ?: ""
+
+            if (email.isNotEmpty() && password.isNotEmpty()) {
+                Log.d(TAG, "Starte E-Mail Monitor Service für: $email")
+                val serviceIntent = Intent(context, GmailMonitorService::class.java)
                 context.startForegroundService(serviceIntent)
             } else {
-                Log.d(TAG, "Kein angemeldetes Konto – Service wird nicht gestartet")
+                Log.d(TAG, "Keine gespeicherten Einstellungen – Service wird nicht gestartet")
             }
         }
     }

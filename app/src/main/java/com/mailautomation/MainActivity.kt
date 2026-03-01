@@ -4,146 +4,118 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.auth.api.signin.GoogleSignInClient
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.common.api.Scope
-import com.google.api.services.gmail.GmailScopes
 
 class MainActivity : Activity() {
 
-    private lateinit var googleSignInClient: GoogleSignInClient
+    private lateinit var emailEditText: EditText
+    private lateinit var passwordEditText: EditText
+    private lateinit var imapHostEditText: EditText
+    private lateinit var imapPortEditText: EditText
+    private lateinit var smtpHostEditText: EditText
+    private lateinit var smtpPortEditText: EditText
     private lateinit var statusTextView: TextView
-    private lateinit var accountTextView: TextView
-    private lateinit var signInButton: Button
-    private lateinit var startStopButton: Button
     private lateinit var lastCheckTextView: TextView
+    private lateinit var startStopButton: Button
 
     companion object {
-        private const val RC_SIGN_IN = 9001
+        const val PREFS_NAME = "email_settings"
+        const val KEY_EMAIL = "email"
+        const val KEY_PASSWORD = "password"
+        const val KEY_IMAP_HOST = "imap_host"
+        const val KEY_IMAP_PORT = "imap_port"
+        const val KEY_SMTP_HOST = "smtp_host"
+        const val KEY_SMTP_PORT = "smtp_port"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        emailEditText = findViewById(R.id.emailEditText)
+        passwordEditText = findViewById(R.id.passwordEditText)
+        imapHostEditText = findViewById(R.id.imapHostEditText)
+        imapPortEditText = findViewById(R.id.imapPortEditText)
+        smtpHostEditText = findViewById(R.id.smtpHostEditText)
+        smtpPortEditText = findViewById(R.id.smtpPortEditText)
         statusTextView = findViewById(R.id.statusTextView)
-        accountTextView = findViewById(R.id.accountTextView)
-        signInButton = findViewById(R.id.signInButton)
-        startStopButton = findViewById(R.id.startStopButton)
         lastCheckTextView = findViewById(R.id.lastCheckTextView)
+        startStopButton = findViewById(R.id.startStopButton)
 
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestScopes(
-                Scope(GmailScopes.GMAIL_COMPOSE),
-                Scope(GmailScopes.GMAIL_READONLY)
-            )
-            .build()
-
-        googleSignInClient = GoogleSignIn.getClient(this, gso)
+        loadSettings()
 
         startStopButton.setOnClickListener {
-            toggleMonitoring()
+            if (GmailMonitorService.isRunning) {
+                stopMonitoring()
+            } else {
+                startMonitoring()
+            }
         }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        val account = GoogleSignIn.getLastSignedInAccount(this)
-        updateUI(account)
     }
 
     override fun onResume() {
         super.onResume()
-        updateUI(GoogleSignIn.getLastSignedInAccount(this))
+        updateStatus()
         val lastCheck = getSharedPreferences("prefs", MODE_PRIVATE)
             .getString("last_check", "Noch nie geprüft")
         lastCheckTextView.text = "Letzte Prüfung: $lastCheck"
     }
 
-    private fun signIn() {
-        val signInIntent = googleSignInClient.signInIntent
-        startActivityForResult(signInIntent, RC_SIGN_IN)
+    private fun loadSettings() {
+        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        emailEditText.setText(prefs.getString(KEY_EMAIL, ""))
+        passwordEditText.setText(prefs.getString(KEY_PASSWORD, ""))
+        imapHostEditText.setText(prefs.getString(KEY_IMAP_HOST, "imap.gmail.com"))
+        imapPortEditText.setText(prefs.getString(KEY_IMAP_PORT, "993"))
+        smtpHostEditText.setText(prefs.getString(KEY_SMTP_HOST, "smtp.gmail.com"))
+        smtpPortEditText.setText(prefs.getString(KEY_SMTP_PORT, "587"))
     }
 
-    private fun signOut() {
-        stopMonitoring()
-        googleSignInClient.signOut().addOnCompleteListener(this) {
-            updateUI(null)
-            Toast.makeText(this, "Abgemeldet", Toast.LENGTH_SHORT).show()
-        }
-    }
+    private fun saveSettings(): Boolean {
+        val email = emailEditText.text.toString().trim()
+        val password = passwordEditText.text.toString()
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == RC_SIGN_IN) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-            try {
-                val account = task.getResult(ApiException::class.java)
-                updateUI(account)
-                Toast.makeText(this, "Anmeldung erfolgreich: ${account.email}", Toast.LENGTH_SHORT).show()
-            } catch (e: ApiException) {
-                statusTextView.text = "Anmeldung fehlgeschlagen (Code: ${e.statusCode})"
-                Toast.makeText(this, "Fehler: ${e.statusCode}", Toast.LENGTH_LONG).show()
-            }
+        if (email.isEmpty() || password.isEmpty()) {
+            Toast.makeText(this, "Bitte E-Mail-Adresse und Passwort eingeben", Toast.LENGTH_LONG).show()
+            return false
         }
-    }
 
-    private fun toggleMonitoring() {
-        if (GmailMonitorService.isRunning) {
-            stopMonitoring()
-        } else {
-            startMonitoring()
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().apply {
+            putString(KEY_EMAIL, email)
+            putString(KEY_PASSWORD, password)
+            putString(KEY_IMAP_HOST, imapHostEditText.text.toString().trim().ifEmpty { "imap.gmail.com" })
+            putString(KEY_IMAP_PORT, imapPortEditText.text.toString().trim().ifEmpty { "993" })
+            putString(KEY_SMTP_HOST, smtpHostEditText.text.toString().trim().ifEmpty { "smtp.gmail.com" })
+            putString(KEY_SMTP_PORT, smtpPortEditText.text.toString().trim().ifEmpty { "587" })
+            apply()
         }
+        return true
     }
 
     private fun startMonitoring() {
-        val account = GoogleSignIn.getLastSignedInAccount(this)
-        if (account == null) {
-            signIn()
-            return
-        }
-        val intent = Intent(this, GmailMonitorService::class.java).apply {
-            putExtra("account_name", account.email)
-        }
+        if (!saveSettings()) return
+        val intent = Intent(this, GmailMonitorService::class.java)
         startForegroundService(intent)
-        updateUI(account)
+        updateStatus()
         Toast.makeText(this, "Überwachung gestartet", Toast.LENGTH_SHORT).show()
     }
 
     private fun stopMonitoring() {
         val intent = Intent(this, GmailMonitorService::class.java)
         stopService(intent)
-        updateUI(GoogleSignIn.getLastSignedInAccount(this))
+        updateStatus()
         Toast.makeText(this, "Überwachung gestoppt", Toast.LENGTH_SHORT).show()
     }
 
-    private fun updateUI(account: GoogleSignInAccount?) {
-        if (account != null) {
-            accountTextView.text = "Konto: ${account.email}"
-            signInButton.text = "Google-Konto abmelden"
-            signInButton.setOnClickListener { signOut() }
-            startStopButton.isEnabled = true
-
-            if (GmailMonitorService.isRunning) {
-                startStopButton.text = "Überwachung stoppen"
-                statusTextView.text = "Status: Aktiv – prüft alle 5 Minuten"
-            } else {
-                startStopButton.text = "Überwachung starten"
-                statusTextView.text = "Status: Inaktiv"
-            }
+    private fun updateStatus() {
+        if (GmailMonitorService.isRunning) {
+            statusTextView.text = "Status: Aktiv – prüft alle 5 Minuten"
+            startStopButton.text = "Überwachung stoppen"
         } else {
-            accountTextView.text = "Kein Google-Konto angemeldet"
-            signInButton.text = "Mit Google anmelden"
-            signInButton.setOnClickListener { signIn() }
-            startStopButton.isEnabled = false
-            startStopButton.text = "Überwachung starten"
-            statusTextView.text = "Status: Bitte zuerst anmelden"
+            statusTextView.text = "Status: Inaktiv"
+            startStopButton.text = "Speichern & Überwachung starten"
         }
     }
 }

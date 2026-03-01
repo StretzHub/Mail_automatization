@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,8 +42,6 @@ class GmailMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val accountName = intent?.getStringExtra("account_name") ?: ""
-
         startForeground(NOTIFICATION_ID, buildNotification("Initialisierung..."))
         isRunning = true
 
@@ -52,7 +49,7 @@ class GmailMonitorService : Service() {
         monitoringJob = serviceScope.launch {
             while (isActive) {
                 try {
-                    checkAndSendDrafts(accountName)
+                    checkAndSendDrafts()
                 } catch (e: Exception) {
                     Log.e(TAG, "Fehler beim Prüfen der Entwürfe", e)
                     updateNotification("Fehler: ${e.message ?: "Unbekannter Fehler"}")
@@ -74,47 +71,37 @@ class GmailMonitorService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private suspend fun checkAndSendDrafts(accountName: String) {
-        val account = GoogleSignIn.getLastSignedInAccount(this@GmailMonitorService)
-        if (account == null) {
-            Log.w(TAG, "Kein angemeldetes Google-Konto gefunden")
-            updateNotification("Kein Konto – bitte App öffnen und anmelden")
+    private fun checkAndSendDrafts() {
+        val prefs = getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+        val email = prefs.getString(MainActivity.KEY_EMAIL, "") ?: ""
+        val password = prefs.getString(MainActivity.KEY_PASSWORD, "") ?: ""
+        val imapHost = prefs.getString(MainActivity.KEY_IMAP_HOST, "imap.gmail.com") ?: "imap.gmail.com"
+        val imapPort = prefs.getString(MainActivity.KEY_IMAP_PORT, "993")?.toIntOrNull() ?: 993
+        val smtpHost = prefs.getString(MainActivity.KEY_SMTP_HOST, "smtp.gmail.com") ?: "smtp.gmail.com"
+        val smtpPort = prefs.getString(MainActivity.KEY_SMTP_PORT, "587")?.toIntOrNull() ?: 587
+
+        if (email.isEmpty() || password.isEmpty()) {
+            Log.w(TAG, "Keine E-Mail-Einstellungen gefunden")
+            updateNotification("Keine Einstellungen – bitte App öffnen")
             return
         }
 
         val timeStr = SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(Date())
         updateNotification("Prüfe Entwürfe... ($timeStr)")
-
         saveLastCheckTime(timeStr)
 
-        val gmailHelper = GmailHelper(this@GmailMonitorService, account)
-        val drafts = gmailHelper.listDrafts()
-
-        if (drafts.isEmpty()) {
-            Log.d(TAG, "Keine Entwürfe gefunden")
-            updateNotification("Keine Entwürfe gefunden – nächste Prüfung in 5 Min.")
-            return
-        }
-
-        Log.d(TAG, "Gefundene Entwürfe: ${drafts.size}")
-        var sentCount = 0
-        var errorCount = 0
-
-        for (draft in drafts) {
-            try {
-                gmailHelper.sendDraft(draft.id)
-                sentCount++
-                Log.d(TAG, "Entwurf gesendet: ${draft.id}")
-            } catch (e: Exception) {
-                errorCount++
-                Log.e(TAG, "Fehler beim Senden von Entwurf ${draft.id}", e)
-            }
-        }
+        val emailHelper = EmailHelper(imapHost, imapPort, smtpHost, smtpPort, email, password)
+        val result = emailHelper.checkAndSendDrafts()
 
         val status = when {
-            sentCount > 0 && errorCount == 0 -> "$sentCount Entwurf/Entwürfe gesendet – nächste Prüfung in 5 Min."
-            sentCount > 0 -> "$sentCount gesendet, $errorCount Fehler – nächste Prüfung in 5 Min."
-            else -> "Senden fehlgeschlagen ($errorCount Fehler) – nächste Prüfung in 5 Min."
+            result.sent > 0 && result.errors == 0 ->
+                "${result.sent} Entwurf/Entwürfe gesendet – nächste Prüfung in 5 Min."
+            result.sent > 0 ->
+                "${result.sent} gesendet, ${result.errors} Fehler – nächste Prüfung in 5 Min."
+            result.errors > 0 ->
+                "Senden fehlgeschlagen (${result.errors} Fehler) – nächste Prüfung in 5 Min."
+            else ->
+                "Keine Entwürfe gefunden – nächste Prüfung in 5 Min."
         }
         updateNotification(status)
     }
@@ -122,10 +109,10 @@ class GmailMonitorService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Gmail Entwurf Monitor",
+            "E-Mail Entwurf Monitor",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Überwacht Gmail-Entwürfe und sendet diese automatisch"
+            description = "Überwacht E-Mail-Entwürfe und sendet diese automatisch"
             setShowBadge(false)
         }
         val notificationManager = getSystemService(NotificationManager::class.java)
@@ -141,7 +128,7 @@ class GmailMonitorService : Service() {
         )
 
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Gmail Entwurf Monitor")
+            .setContentTitle("E-Mail Entwurf Monitor")
             .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setContentIntent(pendingIntent)

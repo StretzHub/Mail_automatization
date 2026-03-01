@@ -31,7 +31,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Gmail Entwurf Monitor"
+                android:text="E-Mail Entwurf Monitor"
                 android:textSize="22sp"
                 android:textStyle="bold"
                 android:textColor="#1A73E8" />
@@ -39,14 +39,14 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Entwürfe automatisch versenden"
+                android:text="Entwürfe automatisch versenden (IMAP/SMTP)"
                 android:textSize="14sp"
                 android:textColor="#666666"
                 android:layout_marginTop="4dp" />
 
         </LinearLayout>
 
-        <!-- Account Section -->
+        <!-- Email Settings Section -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -58,27 +58,91 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="GOOGLE-KONTO"
+                android:text="ANMELDEDATEN"
                 android:textSize="12sp"
-                android:textColor="#888888" />
+                android:textColor="#888888"
+                android:layout_marginBottom="8dp" />
 
-            <TextView
-                android:id="@+id/accountTextView"
+            <EditText
+                android:id="@+id/emailEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Kein Konto angemeldet"
-                android:textSize="16sp"
-                android:textColor="#333333"
-                android:layout_marginTop="4dp"
-                android:layout_marginBottom="12dp" />
+                android:hint="E-Mail-Adresse"
+                android:inputType="textEmailAddress"
+                android:layout_marginBottom="8dp" />
 
-            <Button
-                android:id="@+id/signInButton"
+            <EditText
+                android:id="@+id/passwordEditText"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="Mit Google anmelden"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp" />
+                android:layout_height="wrap_content"
+                android:hint="App-Passwort"
+                android:inputType="textPassword"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="IMAP-SERVER (Posteingang)"
+                android:textSize="12sp"
+                android:textColor="#888888"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp">
+
+                <EditText
+                    android:id="@+id/imapHostEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="3"
+                    android:hint="IMAP-Server (z.B. imap.gmail.com)"
+                    android:inputType="textNoSuggestions"
+                    android:layout_marginEnd="8dp" />
+
+                <EditText
+                    android:id="@+id/imapPortEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Port"
+                    android:inputType="number" />
+
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SMTP-SERVER (Postausgang)"
+                android:textSize="12sp"
+                android:textColor="#888888"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/smtpHostEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="3"
+                    android:hint="SMTP-Server (z.B. smtp.gmail.com)"
+                    android:inputType="textNoSuggestions"
+                    android:layout_marginEnd="8dp" />
+
+                <EditText
+                    android:id="@+id/smtpPortEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Port"
+                    android:inputType="number" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
@@ -102,7 +166,7 @@
                 android:id="@+id/statusTextView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Status: Bitte zuerst anmelden"
+                android:text="Status: Inaktiv"
                 android:textSize="16sp"
                 android:textColor="#333333"
                 android:layout_marginTop="4dp"
@@ -121,8 +185,7 @@
                 android:id="@+id/startStopButton"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:text="Überwachung starten"
-                android:enabled="false"
+                android:text="Speichern &amp; Überwachung starten"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -147,8 +210,8 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="&#8226; Überprüft alle 5 Minuten den Entwurfsordner\n&#8226; Gefundene Entwürfe werden automatisch versendet\n&#8226; Die App arbeitet auch im Hintergrund\n&#8226; Nach Neustart des Geräts wird die Überwachung automatisch wiederhergestellt"
-                android:textSize="14sp"
+                android:text="&#8226; Überprüft alle 5 Minuten den Entwurfsordner per IMAP\n&#8226; Gefundene Entwürfe werden automatisch per SMTP gesendet\n&#8226; Für Gmail: App-Passwort unter Konto &#8250; Sicherheit &#8250; App-Passwörter generieren\n&#8226; Gmail IMAP: imap.gmail.com:993, SMTP: smtp.gmail.com:587\n&#8226; Die App arbeitet auch im Hintergrund\n&#8226; Überwachung startet automatisch nach Geräteneustart"
+                android:textSize="13sp"
                 android:textColor="#555555" />
 
         </LinearLayout>
