@@ -1,15 +1,19 @@
 package com.mailautomation
 
 import android.util.Log
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.util.Properties
 import javax.mail.Authenticator
 import javax.mail.Flags
 import javax.mail.Folder
 import javax.mail.Message
+import javax.mail.MessagingException
 import javax.mail.PasswordAuthentication
 import javax.mail.Session
 import javax.mail.Store
 import javax.mail.Transport
+import javax.mail.internet.InternetAddress
 import javax.mail.internet.MimeMessage
 
 class EmailHelper(
@@ -34,6 +38,21 @@ class EmailHelper(
     }
 
     data class SendResult(val sent: Int, val errors: Int)
+
+    private fun buildSmtpProps(): Properties = Properties().apply {
+        put("mail.smtp.host", smtpHost)
+        put("mail.smtp.port", smtpPort.toString())
+        put("mail.smtp.auth", "true")
+        if (smtpPort == 465) {
+            put("mail.smtp.ssl.enable", "true")
+        } else {
+            put("mail.smtp.starttls.enable", "true")
+            put("mail.smtp.starttls.required", "true")
+        }
+        put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3")
+        put("mail.smtp.connectiontimeout", "20000")
+        put("mail.smtp.timeout", "20000")
+    }
 
     fun checkAndSendDrafts(): SendResult {
         val imapProps = Properties().apply {
@@ -104,23 +123,39 @@ class EmailHelper(
     }
 
     private fun sendViaSMTP(message: Message) {
-        val smtpProps = Properties().apply {
-            put("mail.smtp.host", smtpHost)
-            put("mail.smtp.port", smtpPort.toString())
-            put("mail.smtp.auth", "true")
-            put("mail.smtp.starttls.enable", "true")
-            put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3")
-            put("mail.smtp.connectiontimeout", "20000")
-            put("mail.smtp.timeout", "20000")
-        }
-
+        val smtpProps = buildSmtpProps()
         val smtpSession = Session.getInstance(smtpProps, object : Authenticator() {
             override fun getPasswordAuthentication() =
                 PasswordAuthentication(username, password)
         })
 
-        val newMessage = MimeMessage(smtpSession, (message as MimeMessage).inputStream)
+        // Serialize the full RFC-2822 message (headers + body) via writeTo,
+        // then re-parse it in the SMTP session to preserve all headers correctly.
+        val baos = ByteArrayOutputStream()
+        (message as MimeMessage).writeTo(baos)
+        val newMessage = MimeMessage(smtpSession, ByteArrayInputStream(baos.toByteArray()))
+
+        val recipients = newMessage.allRecipients
+        if (recipients == null || recipients.isEmpty()) {
+            throw MessagingException("Entwurf hat keine Empfänger (To/CC/BCC leer)")
+        }
+
         Transport.send(newMessage)
+    }
+
+    fun sendSimpleEmail(to: String, subject: String, body: String) {
+        val smtpProps = buildSmtpProps()
+        val session = Session.getInstance(smtpProps, object : Authenticator() {
+            override fun getPasswordAuthentication() =
+                PasswordAuthentication(username, password)
+        })
+
+        val msg = MimeMessage(session)
+        msg.setFrom(InternetAddress(username))
+        msg.addRecipient(Message.RecipientType.TO, InternetAddress(to))
+        msg.subject = subject
+        msg.setText(body, "UTF-8")
+        Transport.send(msg)
     }
 
     fun testConnection(): Boolean {

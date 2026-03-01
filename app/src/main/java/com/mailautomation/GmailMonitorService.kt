@@ -27,7 +27,6 @@ class GmailMonitorService : Service() {
         const val TAG = "GmailMonitorService"
         const val CHANNEL_ID = "gmail_monitor_channel"
         const val NOTIFICATION_ID = 1001
-        const val CHECK_INTERVAL_MS = 5 * 60 * 1000L // 5 Minuten
 
         @Volatile
         var isRunning = false
@@ -54,7 +53,8 @@ class GmailMonitorService : Service() {
                     Log.e(TAG, "Fehler beim Prüfen der Entwürfe", e)
                     updateNotification("Fehler: ${e.message ?: "Unbekannter Fehler"}")
                 }
-                delay(CHECK_INTERVAL_MS)
+                val intervalMin = getIntervalMinutes()
+                delay(intervalMin * 60 * 1000L)
             }
         }
 
@@ -71,6 +71,11 @@ class GmailMonitorService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private fun getIntervalMinutes(): Int {
+        val prefs = getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(MainActivity.KEY_INTERVAL_MINUTES, 5)
+    }
+
     private fun checkAndSendDrafts() {
         val prefs = getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
         val email = prefs.getString(MainActivity.KEY_EMAIL, "") ?: ""
@@ -86,6 +91,7 @@ class GmailMonitorService : Service() {
             return
         }
 
+        val intervalMin = getIntervalMinutes()
         val timeStr = SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(Date())
         updateNotification("Prüfe Entwürfe... ($timeStr)")
         saveLastCheckTime(timeStr)
@@ -95,13 +101,13 @@ class GmailMonitorService : Service() {
 
         val status = when {
             result.sent > 0 && result.errors == 0 ->
-                "${result.sent} Entwurf/Entwürfe gesendet – nächste Prüfung in 5 Min."
+                "${result.sent} Entwurf/Entwürfe gesendet – nächste Prüfung in $intervalMin Min."
             result.sent > 0 ->
-                "${result.sent} gesendet, ${result.errors} Fehler – nächste Prüfung in 5 Min."
+                "${result.sent} gesendet, ${result.errors} Fehler – nächste Prüfung in $intervalMin Min."
             result.errors > 0 ->
-                "Senden fehlgeschlagen (${result.errors} Fehler) – nächste Prüfung in 5 Min."
+                "Senden fehlgeschlagen (${result.errors} Fehler) – nächste Prüfung in $intervalMin Min."
             else ->
-                "Keine Entwürfe gefunden – nächste Prüfung in 5 Min."
+                "Keine Entwürfe gefunden – nächste Prüfung in $intervalMin Min."
         }
         updateNotification(status)
     }
