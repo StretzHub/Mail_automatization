@@ -1,6 +1,5 @@
 package com.mailautomation
 
-import android.util.Log
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.Properties
@@ -45,9 +44,11 @@ class EmailHelper(
         put("mail.smtp.auth", "true")
         if (smtpPort == 465) {
             put("mail.smtp.ssl.enable", "true")
+            AppLogger.d(TAG, "SMTP: SSL-Modus (Port 465)")
         } else {
             put("mail.smtp.starttls.enable", "true")
             put("mail.smtp.starttls.required", "true")
+            AppLogger.d(TAG, "SMTP: STARTTLS-Modus (Port $smtpPort)")
         }
         put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3")
         put("mail.smtp.connectiontimeout", "20000")
@@ -55,6 +56,7 @@ class EmailHelper(
     }
 
     fun checkAndSendDrafts(): SendResult {
+        AppLogger.d(TAG, "IMAP-Verbindung zu $imapHost:$imapPort …")
         val imapProps = Properties().apply {
             put("mail.store.protocol", "imaps")
             put("mail.imaps.host", imapHost)
@@ -66,38 +68,50 @@ class EmailHelper(
 
         val imapSession = Session.getInstance(imapProps)
         val store: Store = imapSession.getStore("imaps")
-        store.connect(imapHost, imapPort, username, password)
+        try {
+            store.connect(imapHost, imapPort, username, password)
+            AppLogger.d(TAG, "IMAP-Login erfolgreich als $username")
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "IMAP-Login fehlgeschlagen", e)
+            throw e
+        }
 
         try {
             val draftsFolder = findDraftsFolder(store)
-                ?: return SendResult(0, 0).also {
-                    Log.w(TAG, "Kein Entwurfsordner gefunden")
-                }
+            if (draftsFolder == null) {
+                AppLogger.w(TAG, "Kein Entwurfsordner gefunden! Geprüfte Namen: ${DRAFT_FOLDER_NAMES.joinToString()}")
+                return SendResult(0, 0)
+            }
 
             draftsFolder.open(Folder.READ_WRITE)
             try {
                 val messages = draftsFolder.messages
-                if (messages.isEmpty()) {
-                    Log.d(TAG, "Keine Entwürfe vorhanden")
-                    return SendResult(0, 0)
-                }
+                AppLogger.d(TAG, "${messages.size} Nachricht(en) im Entwurfsordner")
+                if (messages.isEmpty()) return SendResult(0, 0)
 
                 var sent = 0
                 var errors = 0
 
                 for (message in messages) {
+                    val subject = try { message.subject ?: "(kein Betreff)" } catch (e: Exception) { "(unbekannt)" }
+                    val recipients = try {
+                        val r = message.allRecipients
+                        if (r.isNullOrEmpty()) "(keine)" else r.joinToString(", ") { it.toString() }
+                    } catch (e: Exception) { "(unlesbar)" }
+                    AppLogger.d(TAG, "Verarbeite Entwurf: Betreff='$subject', An='$recipients'")
                     try {
                         sendViaSMTP(message)
                         message.setFlag(Flags.Flag.DELETED, true)
                         sent++
-                        Log.d(TAG, "Entwurf gesendet: ${message.subject}")
+                        AppLogger.d(TAG, "✓ Gesendet: '$subject'")
                     } catch (e: Exception) {
-                        Log.e(TAG, "Fehler beim Senden: ${message.subject}", e)
+                        AppLogger.e(TAG, "✗ Fehler beim Senden: '$subject'", e)
                         errors++
                     }
                 }
 
                 draftsFolder.expunge()
+                AppLogger.d(TAG, "Ergebnis: $sent gesendet, $errors Fehler")
                 return SendResult(sent, errors)
             } finally {
                 if (draftsFolder.isOpen) draftsFolder.close(true)
@@ -108,21 +122,25 @@ class EmailHelper(
     }
 
     private fun findDraftsFolder(store: Store): Folder? {
+        AppLogger.d(TAG, "Suche Entwurfsordner …")
         for (name in DRAFT_FOLDER_NAMES) {
             try {
                 val folder = store.getFolder(name)
                 if (folder.exists()) {
-                    Log.d(TAG, "Entwurfsordner gefunden: $name")
+                    AppLogger.d(TAG, "Entwurfsordner gefunden: '$name'")
                     return folder
+                } else {
+                    AppLogger.d(TAG, "  '$name' – nicht vorhanden")
                 }
             } catch (e: Exception) {
-                // try next name
+                AppLogger.d(TAG, "  '$name' – Fehler: ${e.message}")
             }
         }
         return null
     }
 
     private fun sendViaSMTP(message: Message) {
+        AppLogger.d(TAG, "Verbinde mit SMTP $smtpHost:$smtpPort …")
         val smtpProps = buildSmtpProps()
         val smtpSession = Session.getInstance(smtpProps, object : Authenticator() {
             override fun getPasswordAuthentication() =
@@ -139,11 +157,14 @@ class EmailHelper(
         if (recipients == null || recipients.isEmpty()) {
             throw MessagingException("Entwurf hat keine Empfänger (To/CC/BCC leer)")
         }
+        AppLogger.d(TAG, "Sende an: ${recipients.joinToString(", ") { it.toString() }}")
 
         Transport.send(newMessage)
+        AppLogger.d(TAG, "SMTP-Transport erfolgreich")
     }
 
     fun sendSimpleEmail(to: String, subject: String, body: String) {
+        AppLogger.d(TAG, "Sende Benachrichtigungs-Mail an $to …")
         val smtpProps = buildSmtpProps()
         val session = Session.getInstance(smtpProps, object : Authenticator() {
             override fun getPasswordAuthentication() =
@@ -156,26 +177,6 @@ class EmailHelper(
         msg.subject = subject
         msg.setText(body, "UTF-8")
         Transport.send(msg)
-    }
-
-    fun testConnection(): Boolean {
-        return try {
-            val imapProps = Properties().apply {
-                put("mail.store.protocol", "imaps")
-                put("mail.imaps.host", imapHost)
-                put("mail.imaps.port", imapPort.toString())
-                put("mail.imaps.ssl.enable", "true")
-                put("mail.imaps.connectiontimeout", "10000")
-                put("mail.imaps.timeout", "10000")
-            }
-            val session = Session.getInstance(imapProps)
-            val store = session.getStore("imaps")
-            store.connect(imapHost, imapPort, username, password)
-            store.close()
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Verbindungstest fehlgeschlagen", e)
-            false
-        }
+        AppLogger.d(TAG, "Benachrichtigungs-Mail gesendet: $subject")
     }
 }

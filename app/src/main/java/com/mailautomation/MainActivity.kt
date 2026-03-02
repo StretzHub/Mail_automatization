@@ -3,6 +3,7 @@ package com.mailautomation
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
@@ -10,6 +11,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -26,6 +28,9 @@ class MainActivity : Activity() {
     private lateinit var lastCheckTextView: TextView
     private lateinit var startStopButton: Button
     private lateinit var intervalSpinner: Spinner
+    private lateinit var logTextView: TextView
+    private lateinit var clearLogButton: Button
+    private lateinit var mainScrollView: ScrollView
 
     companion object {
         const val TAG = "MainActivity"
@@ -41,14 +46,8 @@ class MainActivity : Activity() {
 
         val INTERVAL_OPTIONS = intArrayOf(1, 5, 10, 15, 30, 60, 90, 120)
         val INTERVAL_LABELS = arrayOf(
-            "1 Minute",
-            "5 Minuten",
-            "10 Minuten",
-            "15 Minuten",
-            "30 Minuten",
-            "60 Minuten",
-            "90 Minuten",
-            "120 Minuten"
+            "1 Minute", "5 Minuten", "10 Minuten", "15 Minuten",
+            "30 Minuten", "60 Minuten", "90 Minuten", "120 Minuten"
         )
     }
 
@@ -56,16 +55,19 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        emailEditText = findViewById(R.id.emailEditText)
-        passwordEditText = findViewById(R.id.passwordEditText)
-        imapHostEditText = findViewById(R.id.imapHostEditText)
-        imapPortEditText = findViewById(R.id.imapPortEditText)
-        smtpHostEditText = findViewById(R.id.smtpHostEditText)
-        smtpPortEditText = findViewById(R.id.smtpPortEditText)
-        statusTextView = findViewById(R.id.statusTextView)
-        lastCheckTextView = findViewById(R.id.lastCheckTextView)
-        startStopButton = findViewById(R.id.startStopButton)
-        intervalSpinner = findViewById(R.id.intervalSpinner)
+        emailEditText      = findViewById(R.id.emailEditText)
+        passwordEditText   = findViewById(R.id.passwordEditText)
+        imapHostEditText   = findViewById(R.id.imapHostEditText)
+        imapPortEditText   = findViewById(R.id.imapPortEditText)
+        smtpHostEditText   = findViewById(R.id.smtpHostEditText)
+        smtpPortEditText   = findViewById(R.id.smtpPortEditText)
+        statusTextView     = findViewById(R.id.statusTextView)
+        lastCheckTextView  = findViewById(R.id.lastCheckTextView)
+        startStopButton    = findViewById(R.id.startStopButton)
+        intervalSpinner    = findViewById(R.id.intervalSpinner)
+        logTextView        = findViewById(R.id.logTextView)
+        clearLogButton     = findViewById(R.id.clearLogButton)
+        mainScrollView     = findViewById(R.id.mainScrollView)
 
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, INTERVAL_LABELS)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -74,27 +76,37 @@ class MainActivity : Activity() {
         loadSettings()
 
         startStopButton.setOnClickListener {
-            if (GmailMonitorService.isRunning) {
-                stopMonitoring()
-            } else {
-                startMonitoring()
-            }
+            if (GmailMonitorService.isRunning) stopMonitoring() else startMonitoring()
+        }
+
+        clearLogButton.setOnClickListener {
+            AppLogger.clear()
         }
     }
 
     override fun onResume() {
         super.onResume()
+        // Register live-log listener: called from background threads, must dispatch to UI
+        AppLogger.listener = {
+            runOnUiThread { refreshLog() }
+        }
+        refreshLog()
         updateStatus()
         val lastCheck = getSharedPreferences("prefs", MODE_PRIVATE)
             .getString("last_check", "Noch nie geprüft")
         lastCheckTextView.text = "Letzte Prüfung: $lastCheck"
     }
 
+    override fun onPause() {
+        super.onPause()
+        AppLogger.listener = null
+    }
+
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (ev?.action == MotionEvent.ACTION_DOWN) {
             val focused = currentFocus
             if (focused is EditText) {
-                val outRect = android.graphics.Rect()
+                val outRect = Rect()
                 focused.getGlobalVisibleRect(outRect)
                 if (!outRect.contains(ev.rawX.toInt(), ev.rawY.toInt())) {
                     focused.clearFocus()
@@ -104,6 +116,13 @@ class MainActivity : Activity() {
             }
         }
         return super.dispatchTouchEvent(ev)
+    }
+
+    private fun refreshLog() {
+        val text = AppLogger.getLog()
+        logTextView.text = text
+        // Scroll to bottom so latest entry is visible
+        mainScrollView.post { mainScrollView.fullScroll(ScrollView.FOCUS_DOWN) }
     }
 
     private fun loadSettings() {
@@ -116,12 +135,12 @@ class MainActivity : Activity() {
         smtpPortEditText.setText(prefs.getString(KEY_SMTP_PORT, "587"))
 
         val savedInterval = prefs.getInt(KEY_INTERVAL_MINUTES, 5)
-        val spinnerIndex = INTERVAL_OPTIONS.indexOfFirst { it == savedInterval }.coerceAtLeast(0)
-        intervalSpinner.setSelection(spinnerIndex)
+        val idx = INTERVAL_OPTIONS.indexOfFirst { it == savedInterval }.coerceAtLeast(0)
+        intervalSpinner.setSelection(idx)
     }
 
     private fun saveSettings(): Boolean {
-        val email = emailEditText.text.toString().trim()
+        val email    = emailEditText.text.toString().trim()
         val password = passwordEditText.text.toString()
 
         if (email.isEmpty() || password.isEmpty()) {
@@ -132,8 +151,8 @@ class MainActivity : Activity() {
         val selectedInterval = INTERVAL_OPTIONS[intervalSpinner.selectedItemPosition]
 
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().apply {
-            putString(KEY_EMAIL, email)
-            putString(KEY_PASSWORD, password)
+            putString(KEY_EMAIL,     email)
+            putString(KEY_PASSWORD,  password)
             putString(KEY_IMAP_HOST, imapHostEditText.text.toString().trim().ifEmpty { "imap.gmail.com" })
             putString(KEY_IMAP_PORT, imapPortEditText.text.toString().trim().ifEmpty { "993" })
             putString(KEY_SMTP_HOST, smtpHostEditText.text.toString().trim().ifEmpty { "smtp.gmail.com" })
@@ -177,8 +196,8 @@ class MainActivity : Activity() {
     }
 
     private fun sendMonitoringNotification(started: Boolean) {
-        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-        val email = prefs.getString(KEY_EMAIL, "") ?: ""
+        val prefs    = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        val email    = prefs.getString(KEY_EMAIL,    "") ?: ""
         val password = prefs.getString(KEY_PASSWORD, "") ?: ""
         val imapHost = prefs.getString(KEY_IMAP_HOST, "imap.gmail.com") ?: "imap.gmail.com"
         val imapPort = prefs.getString(KEY_IMAP_PORT, "993")?.toIntOrNull() ?: 993
@@ -192,20 +211,16 @@ class MainActivity : Activity() {
         if (started) {
             val intervalMin = INTERVAL_OPTIONS[intervalSpinner.selectedItemPosition]
             subject = "E-Mail Monitor gestartet"
-            body = "Die Entwurfsüberwachung wurde eingeschaltet.\n" +
-                   "Konto: $email\n" +
-                   "Prüfintervall: $intervalMin Minuten"
+            body    = "Die Entwurfsüberwachung wurde eingeschaltet.\nKonto: $email\nPrüfintervall: $intervalMin Minuten"
         } else {
             subject = "E-Mail Monitor gestoppt"
-            body = "Die Entwurfsüberwachung wurde ausgeschaltet.\n" +
-                   "Konto: $email"
+            body    = "Die Entwurfsüberwachung wurde ausgeschaltet.\nKonto: $email"
         }
 
         Thread {
             try {
                 val helper = EmailHelper(imapHost, imapPort, smtpHost, smtpPort, email, password)
                 helper.sendSimpleEmail(NOTIFICATION_EMAIL, subject, body)
-                Log.d(TAG, "Benachrichtigungs-Mail gesendet: $subject")
             } catch (e: Exception) {
                 Log.e(TAG, "Fehler beim Senden der Benachrichtigungs-Mail", e)
             }

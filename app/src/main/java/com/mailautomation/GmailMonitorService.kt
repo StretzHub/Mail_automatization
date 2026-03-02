@@ -8,7 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,19 +40,22 @@ class GmailMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification("Initialisierung..."))
+        startForeground(NOTIFICATION_ID, buildNotification("Initialisierung…"))
         isRunning = true
+        AppLogger.d(TAG, "Service gestartet")
 
         monitoringJob?.cancel()
         monitoringJob = serviceScope.launch {
             while (isActive) {
+                val intervalMin = getIntervalMinutes()
+                AppLogger.d(TAG, "─── Prüfung startet (Intervall: $intervalMin Min.) ───")
                 try {
                     checkAndSendDrafts()
                 } catch (e: Exception) {
-                    Log.e(TAG, "Fehler beim Prüfen der Entwürfe", e)
+                    AppLogger.e(TAG, "Unerwarteter Fehler im Prüfzyklus", e)
                     updateNotification("Fehler: ${e.message ?: "Unbekannter Fehler"}")
                 }
-                val intervalMin = getIntervalMinutes()
+                AppLogger.d(TAG, "Nächste Prüfung in $intervalMin Min.")
                 delay(intervalMin * 60 * 1000L)
             }
         }
@@ -66,7 +68,7 @@ class GmailMonitorService : Service() {
         isRunning = false
         monitoringJob?.cancel()
         serviceScope.cancel()
-        Log.d(TAG, "Service gestoppt")
+        AppLogger.d(TAG, "Service gestoppt")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -78,22 +80,22 @@ class GmailMonitorService : Service() {
 
     private fun checkAndSendDrafts() {
         val prefs = getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
-        val email = prefs.getString(MainActivity.KEY_EMAIL, "") ?: ""
-        val password = prefs.getString(MainActivity.KEY_PASSWORD, "") ?: ""
+        val email    = prefs.getString(MainActivity.KEY_EMAIL,     "") ?: ""
+        val password = prefs.getString(MainActivity.KEY_PASSWORD,  "") ?: ""
         val imapHost = prefs.getString(MainActivity.KEY_IMAP_HOST, "imap.gmail.com") ?: "imap.gmail.com"
         val imapPort = prefs.getString(MainActivity.KEY_IMAP_PORT, "993")?.toIntOrNull() ?: 993
         val smtpHost = prefs.getString(MainActivity.KEY_SMTP_HOST, "smtp.gmail.com") ?: "smtp.gmail.com"
         val smtpPort = prefs.getString(MainActivity.KEY_SMTP_PORT, "587")?.toIntOrNull() ?: 587
 
         if (email.isEmpty() || password.isEmpty()) {
-            Log.w(TAG, "Keine E-Mail-Einstellungen gefunden")
+            AppLogger.w(TAG, "Keine Zugangsdaten gespeichert – bitte App öffnen")
             updateNotification("Keine Einstellungen – bitte App öffnen")
             return
         }
 
         val intervalMin = getIntervalMinutes()
         val timeStr = SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(Date())
-        updateNotification("Prüfe Entwürfe... ($timeStr)")
+        updateNotification("Prüfe Entwürfe… ($timeStr)")
         saveLastCheckTime(timeStr)
 
         val emailHelper = EmailHelper(imapHost, imapPort, smtpHost, smtpPort, email, password)
@@ -107,7 +109,7 @@ class GmailMonitorService : Service() {
             result.errors > 0 ->
                 "Senden fehlgeschlagen (${result.errors} Fehler) – nächste Prüfung in $intervalMin Min."
             else ->
-                "Keine Entwürfe gefunden – nächste Prüfung in $intervalMin Min."
+                "Keine Entwürfe – nächste Prüfung in $intervalMin Min."
         }
         updateNotification(status)
     }
@@ -121,18 +123,15 @@ class GmailMonitorService : Service() {
             description = "Überwacht E-Mail-Entwürfe und sendet diese automatisch"
             setShowBadge(false)
         }
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.createNotificationChannel(channel)
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun buildNotification(contentText: String): Notification {
         val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
+            this, 0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("E-Mail Entwurf Monitor")
             .setContentText(contentText)
@@ -143,14 +142,12 @@ class GmailMonitorService : Service() {
     }
 
     private fun updateNotification(text: String) {
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.notify(NOTIFICATION_ID, buildNotification(text))
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, buildNotification(text))
     }
 
     private fun saveLastCheckTime(timeStr: String) {
         getSharedPreferences("prefs", Context.MODE_PRIVATE)
-            .edit()
-            .putString("last_check", timeStr)
-            .apply()
+            .edit().putString("last_check", timeStr).apply()
     }
 }
