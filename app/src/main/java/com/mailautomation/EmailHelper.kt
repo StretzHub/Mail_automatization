@@ -50,7 +50,7 @@ class EmailHelper(
             put("mail.smtp.starttls.required", "true")
             AppLogger.d(TAG, "SMTP: STARTTLS-Modus (Port $smtpPort)")
         }
-        put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3")
+        put("mail.smtp.ssl.protocols", "TLSv1.2")
         put("mail.smtp.connectiontimeout", "20000")
         put("mail.smtp.timeout", "20000")
     }
